@@ -128,8 +128,50 @@ class ScoringEngine:
         return result
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PRIVATE — RULE-BASED ENGINE
+    # PRIVATE — DUAL-LAYER PHISHING / SMISHING ENGINE
     # ─────────────────────────────────────────────────────────────────────────
+
+    # Suspicious URL fragments — banking lookalikes and known URL shorteners
+    _PHISHING_URL_PATTERNS: list[str] = [
+        "fibank-verify", "secure-fibank", "fibank-secure",
+        "fibank-login", "login-fibank", "fibank-update", "verify-fibank",
+        "bit.ly", "tinyurl", "t.co", "goo.gl", "is.gd", "ow.ly",
+    ]
+
+    # High-urgency Albanian and banking-scam SMS keywords (smishing signals)
+    _SMISHING_KEYWORDS: list[str] = [
+        "bllokuar", "verifiko", "përditëso", "kredencialet",
+        "fitues", "urgjente", "urgjent", "verifikoni", "llogarinë",
+        "çaktivizuar", "klikoni", "fjalëkalimin", "llogaria", "fibank",
+    ]
+
+    @staticmethod
+    def analyze_phishing_payload(url: str = "", sms_text: str = "") -> bool:
+        """
+        Lightweight heuristic detector for phishing URLs and smishing SMS text.
+
+        Layer A — URL analysis:
+            Checks for banking-lookalike domains and known URL shorteners
+            commonly used to mask phishing landing pages.
+
+        Layer B — SMS keyword analysis:
+            Scans for high-urgency Albanian and generic banking-scam phrases
+            that pressure victims into clicking malicious links (Smishing).
+
+        Returns True if either layer detects a threat; False otherwise.
+
+        GDPR note: no personal data is stored or logged during this analysis —
+        only a binary threat/no-threat signal is produced.
+        """
+        url_lower = (url or "").lower()
+        sms_lower = (sms_text or "").lower()
+
+        if any(p in url_lower for p in ScoringEngine._PHISHING_URL_PATTERNS):
+            return True
+        if any(kw in sms_lower for kw in ScoringEngine._SMISHING_KEYWORDS):
+            return True
+        return False
+
     def _apply_rules(self, tx: dict[str, Any]) -> dict[str, Any] | None:
         """
         Evaluate hard-coded business rules in priority order.
@@ -140,26 +182,43 @@ class ScoringEngine:
         knows exactly what triggered the decision — no black-box rejections.
         """
 
-        # ── Rule 1: Smishing / Phishing link detected ─────────────────────────
-        # If the session contained a URL matching the phishing blocklist, block
-        # immediately.  This catches Smishing attacks before any money moves.
-        if int(tx.get("is_phishing_detected", 0)) == 1:
+        # ── Rule 1: Dual-Layer Phishing / Smishing Detection ──────────────────
+        # Trigger A: upstream flag set by the mobile app / browser extension.
+        # Trigger B: heuristic scan of raw URL and SMS payload strings.
+        # Either trigger alone is sufficient to BLOCK immediately.
+        flag      = int(tx.get("is_phishing_detected", 0)) == 1
+        heuristic = self.analyze_phishing_payload(
+            url      = tx.get("detected_url", "") or "",
+            sms_text = tx.get("sms_payload",  "") or "",
+        )
+
+        if flag or heuristic:
+            if flag and heuristic:
+                trigger_detail = (
+                    "upstream phishing flag active and "
+                    "URL/SMS heuristic confirmed threat"
+                )
+            elif flag:
+                trigger_detail = "upstream phishing flag active (is_phishing_detected=1)"
+            else:
+                trigger_detail = "URL/SMS heuristic detected suspicious content"
+
+            log.warning(
+                "[RuleEngine] BLOCK — Phishing/Smishing | trigger=%s", trigger_detail
+            )
             return {
                 "action": "BLOCK",
                 "reason": (
-                    "Rule 1 — Phishing link detected in this session.  "
-                    "The transaction has been blocked to protect you from "
-                    "credential theft or social-engineering fraud (Smishing)."
+                    "Kërcënim i lartë: Phishing/Smishing i zbuluar.  "
+                    f"Detaje: {trigger_detail}.  "
+                    "Transaksioni është bllokuar për të mbrojtur llogarinë tuaj "
+                    "(Transaction blocked to protect your account from credential "
+                    "theft or social-engineering fraud)."
                 ),
                 "score": 0.0,
             }
 
         # ── Additional rules can be inserted here without retraining the model ─
-        # Example Rule 2 (placeholder — enable when threat-intel feed is live):
-        #   if int(tx.get("is_new_device", 0)) == 1 and float(tx.get("transaction_amount", 0)) > 5000:
-        #       return {"action": "MFA_CHALLENGE",
-        #               "reason": "Rule 2 — High-value transaction from unrecognised device.",
-        #               "score": 0.0}
 
         return None  # all rules passed → escalate to ML layer
 

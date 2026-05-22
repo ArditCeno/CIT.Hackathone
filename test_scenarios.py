@@ -5,8 +5,8 @@ Sends three representative transactions to the /predict endpoint and
 prints a colour-coded, formatted report to the terminal.
 
 Usage (server must already be running):
-    uvicorn api:app --reload --port 8000   # terminal 1
-    python test_scenarios.py               # terminal 2
+    uvicorn fraud_api:app --reload --port 8000   # terminal 1
+    python test_scenarios.py                     # terminal 2
 """
 
 import sys
@@ -89,6 +89,49 @@ SCENARIOS = [
             "is_phishing_detected":  0,
         },
     },
+    {
+        "id":          4,
+        "title":       "Smishing Attack Simulation (Albanian)",
+        "description": (
+            "Raw SMS payload containing Albanian urgency keywords.  "
+            "is_phishing_detected is 0 — the Dual-Layer Heuristic Engine "
+            "alone must detect the smishing threat and return BLOCK."
+        ),
+        "expected":    "BLOCK",
+        "payload": {
+            "transaction_amount":     150.00,
+            "hour_of_day":            11,
+            "is_new_device":          0,
+            "is_new_ip":              0,
+            "is_foreign_country":     0,
+            "distance_from_usual_km": 2.0,
+            "is_phishing_detected":   0,   # <── flag OFF — heuristic must fire
+            "sms_payload": (
+                "Ju lutem verifikoni llogarinë tuaj në Fibank urgjentisht "
+                "në këtë link: http://fibank-verify.ru/login"
+            ),
+        },
+    },
+    {
+        "id":          5,
+        "title":       "Phishing URL Heuristic (no flag)",
+        "description": (
+            "A banking-lookalike URL is passed via detected_url.  "
+            "is_phishing_detected is 0 — only the URL heuristic should "
+            "catch it and immediately return BLOCK."
+        ),
+        "expected":    "BLOCK",
+        "payload": {
+            "transaction_amount":     500.00,
+            "hour_of_day":            9,
+            "is_new_device":          0,
+            "is_new_ip":              0,
+            "is_foreign_country":     0,
+            "distance_from_usual_km": 1.0,
+            "is_phishing_detected":   0,   # <── flag OFF — URL heuristic must fire
+            "detected_url": "https://secure-fibank.phish.ru/account/update",
+        },
+    },
 ]
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
@@ -113,8 +156,13 @@ def print_scenario_header(s: dict):
 def print_payload(payload: dict):
     print(f"{DIM}Request payload:{RESET}")
     for k, v in payload.items():
-        flag = f"  {CYAN}{'*' if v not in (0, 0.0) else ' '}{RESET}"
-        print(f"{flag}  {k:<28} = {v}")
+        is_default = v in (0, 0.0) or v is None
+        flag = f"  {CYAN}{'*' if not is_default else ' '}{RESET}"
+        if isinstance(v, str) and len(v) > 55:
+            display_v = f'"{v[:55]}..."'
+        else:
+            display_v = f'"{v}"' if isinstance(v, str) else v
+        print(f"{flag}  {k:<28} = {display_v}")
     print()
 
 
@@ -167,7 +215,7 @@ def main():
         print(f"{GREEN}Health check OK — model loaded.{RESET}\n")
     except Exception:
         print(f"{RED}Health check failed — is the server up?{RESET}")
-        print("Run:  uvicorn api:app --reload --port 8000\n")
+        print("Run:  uvicorn fraud_api:app --reload --port 8000\n")
         sys.exit(1)
 
     results = []

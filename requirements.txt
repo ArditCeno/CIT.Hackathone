@@ -11,3 +11,4 @@ scikit-learn>=1.4.0       # IsolationForest + StandardScaler + Pipeline
 joblib>=1.4.0             # model serialisation
 pandas>=2.2.0             # CSV loading & feature prep
 numpy>=1.26.0             # numeric arrays
+requests>=2.31.0          # HTTP client (used by test_scenarios.py)

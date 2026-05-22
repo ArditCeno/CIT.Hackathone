@@ -36,6 +36,7 @@ def process_login(event: LoginEvent):
         "client_id": event.client_id,
         "ip_address": event.ip_address,
         "device_id": event.device_id,
+        "timestamp": ts,
         "profile": profile,
     }
     risk_score = predict(fraud_input)
@@ -80,6 +81,7 @@ def process_transaction(event: TransactionEvent):
         "amount": event.amount,
         "ip_address": event.ip_address,
         "device_id": event.device_id,
+        "timestamp": ts,
         "profile": profile,
     }
     risk_score = predict(fraud_input)

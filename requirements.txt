@@ -1,3 +1,12 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-pydantic==2.5.2
+# GuardianAI — Python dependencies
+# Install : pip install -r requirements.txt
+# Requires: Python 3.10+
+
+fastapi>=0.111.0          # web framework
+uvicorn[standard]>=0.29.0 # ASGI server
+pydantic>=2.7.0           # request / response validation
+scikit-learn>=1.4.0       # IsolationForest + StandardScaler + Pipeline
+joblib>=1.4.0             # model serialisation
+pandas>=2.2.0             # CSV loading & feature prep
+numpy>=1.26.0             # numeric arrays
+requests>=2.31.0          # HTTP client

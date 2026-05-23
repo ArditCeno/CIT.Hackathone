@@ -50,13 +50,13 @@ export default function TransferPage() {
       if (!res.ok) { triggerToast(data.detail || 'Gabim në transfertë.', 'error'); return; }
       setTransferResult(data);
       if (data.decision === 'ALLOW') {
-        triggerToast(`Transfertë e €${amount.toFixed(2)} u ekzekutua!`, 'success');
+        triggerToast(`Transfertë e suksesshme: €${amount.toFixed(2)} dërguar tek ${data.recipient}!`, 'success');
         await refreshCurrentUser();
         setRecipientName(''); setRecipientIban(''); setTransferAmount(''); setTransferNote('');
       } else if (data.decision === 'BLOCK') {
-        triggerToast('Transfertë e bllokuar nga GuardianAI!', 'error');
-      } else {
-        triggerToast('Kërkohet verifikim shtesë (MFA).', 'info');
+        triggerToast('⛔ Transfertë e bllokuar nga GuardianAI!', 'error');
+      } else if (data.decision === 'MFA_CHALLENGE') {
+        triggerToast('⚠️ Kërkohet verifikim shtesë (MFA).', 'info');
       }
     } catch { triggerToast('Server i paarritshëm. Provoni sërish.', 'error'); }
     finally { setTransferLoading(false); }
@@ -126,7 +126,13 @@ export default function TransferPage() {
           </div>
 
           {transferResult && (() => {
-            const s = ACTION_STYLE[transferResult.decision] || ACTION_STYLE.BLOCK;
+            const s = ACTION_STYLE[transferResult.decision] || {
+              bg: 'bg-slate-50 dark:bg-slate-800',
+              border: 'border-slate-300 dark:border-slate-600',
+              text: 'text-slate-600 dark:text-slate-300',
+              badge: 'bg-slate-400',
+              icon: 'fa-circle-question',
+            };
             return (
               <div className={`rounded-xl border-2 ${s.bg} ${s.border} p-4 space-y-2`}>
                 <div className="flex items-center gap-4">

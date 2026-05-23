@@ -5,11 +5,11 @@ class ResponseEngine:
 
     def decide(self, risk_score):
         if risk_score >= self.high_threshold:
-            return "block"
+            return "BLOCK"
         elif risk_score >= self.low_threshold:
-            return "mfa"
+            return "MFA_CHALLENGE"
         else:
-            return "allow"
+            return "ALLOW"
 
     def get_decision_details(self, risk_score, client_id=None):
         decision = self.decide(risk_score)
@@ -23,10 +23,10 @@ class ResponseEngine:
             },
         }
 
-        if decision == "block":
+        if decision == "BLOCK":
             details["message"] = "Transaction blocked due to high risk."
             details["action_required"] = "Contact support."
-        elif decision == "mfa":
+        elif decision == "MFA_CHALLENGE":
             details["message"] = "Additional verification required."
             details["action_required"] = "Complete multi-factor authentication."
         else:

@@ -14,14 +14,6 @@ const SCAN_PRESETS = [
     payload: { transaction_amount: 500.00, hour_of_day: 9,  is_new_device: 0, is_new_ip: 0, is_foreign_country: 0, distance_from_usual_km: 1.0,    is_phishing_detected: 0, detected_url: 'https://secure-fibank.phish.ru/account/update' } },
 ];
 
-const RECENT_TRANSACTIONS_DEMO = [
-  { id: 'KA_E003', date: '15 Qer 2025, 13:15', type: 'Transfer', recipient: 'Unknown (Rome)', amount: -5000.00, fraud: true },
-  { id: 'KA_E002', date: '15 Qer 2025, 13:00', type: 'Login Anomaly', recipient: 'IP: 89.96.123.45', amount: null, fraud: true },
-  { id: 'T001',    date: '10 Qer 2025, 09:30', type: 'Payment',  recipient: 'OSHEE sh.a.', amount: -125.50, fraud: false },
-  { id: 'T002',    date: '08 Qer 2025, 14:20', type: 'Transfer', recipient: 'Besnik Kola', amount: -350.00, fraud: false },
-  { id: 'T003',    date: '05 Qer 2025, 11:05', type: 'Deposit',  recipient: 'Paga Mujore', amount: +2100.00, fraud: false },
-];
-
 const ACTION_STYLE = {
   ALLOW:         { bg: 'bg-green-50 dark:bg-green-900/30',  border: 'border-green-300 dark:border-green-700',   text: 'text-green-700 dark:text-green-300',  badge: 'bg-green-500',  icon: 'fa-check-circle' },
   MFA_CHALLENGE: { bg: 'bg-yellow-50 dark:bg-yellow-900/30', border: 'border-yellow-300 dark:border-yellow-700', text: 'text-yellow-700 dark:text-yellow-300', badge: 'bg-yellow-500', icon: 'fa-mobile-screen' },
@@ -66,7 +58,7 @@ export default function DashboardPage() {
   const pieChartRef      = useRef(null);
   const pieChartInst     = useRef(null);
 
-  const recentTx = userTransactions ? userTransactions.slice(0, 5) : RECENT_TRANSACTIONS_DEMO;
+  const recentTx = (userTransactions || []).slice(0, 5);
 
   const statCards = currentUser?.role === 'admin'
     ? [
@@ -244,7 +236,22 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
           <h3 className="font-bold text-xs mb-4 uppercase text-slate-400 tracking-wider">Transaksionet e Fundit</h3>
           <div className="space-y-3">
-            {recentTx.map(tx => (
+            {recentTx.length === 0 && statsLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex justify-between items-center animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
+                    <div className="space-y-1.5">
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+                      <div className="h-2 bg-slate-100 dark:bg-slate-600 rounded w-16"></div>
+                    </div>
+                  </div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-14"></div>
+                </div>
+              ))
+            ) : recentTx.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">Nuk ka transaksione.</p>
+            ) : recentTx.map(tx => (
               <div key={tx.id} className={`flex justify-between items-start text-xs rounded-xl p-2 ${tx.fraud ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs ${tx.fraud ? 'bg-red-500' : tx.amount > 0 ? 'bg-green-500' : 'bg-blue-500'}`}>

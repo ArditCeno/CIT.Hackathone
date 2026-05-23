@@ -1,24 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
-const ALL_TRANSACTIONS = [
-  { id: 'KA_E003', date: '2025-06-15 13:15', type: 'Transfer',  recipient: 'Unknown (Rome)',  amount: -5000.00, city: 'Rome',   device: 'Desktop_Windows', fraud: true },
-  { id: 'KA_E002', date: '2025-06-15 13:00', type: 'Login',     recipient: 'IP 89.96.123.45', amount: null,     city: 'Rome',   device: 'Desktop_Windows', fraud: true },
-  { id: 'KA_E001', date: '2025-06-15 10:00', type: 'Login',     recipient: 'Normal Session',  amount: null,     city: 'Tiranë', device: 'Desktop_Windows', fraud: false },
-  { id: 'T001',    date: '2025-06-10 09:30', type: 'Payment',   recipient: 'OSHEE sh.a.',     amount: -125.50,  city: 'Tiranë', device: 'Mobile_iOS',      fraud: false },
-  { id: 'T002',    date: '2025-06-08 14:20', type: 'Transfer',  recipient: 'Besnik Kola',     amount: -350.00,  city: 'Berat',  device: 'Desktop_Mac',     fraud: false },
-  { id: 'T003',    date: '2025-06-05 11:05', type: 'Deposit',   recipient: 'Paga Mujore',     amount: +2100.00, city: 'Tiranë', device: 'Desktop_Mac',     fraud: false },
-  { id: 'T004',    date: '2025-05-28 16:44', type: 'Payment',   recipient: 'UKT Ujësjellës',  amount: -48.20,   city: 'Tiranë', device: 'Mobile_iOS',      fraud: false },
-  { id: 'T005',    date: '2025-05-20 10:10', type: 'Transfer',  recipient: 'Elona Dervishi',  amount: -200.00,  city: 'Tiranë', device: 'Desktop_Mac',     fraud: false },
-  { id: 'T006',    date: '2025-04-18 02:33', type: 'Transfer',  recipient: 'Unknown',         amount: -1800.00, city: 'Berlin', device: 'Mobile_Android',  fraud: true },
-  { id: 'T007',    date: '2025-04-01 09:00', type: 'Deposit',   recipient: 'Paga Mujore',     amount: +2100.00, city: 'Tiranë', device: 'Desktop_Mac',     fraud: false },
-];
-
 export default function TransactionsPage() {
   const { currentUser, userTransactions, mockData, triggerToast } = useApp();
   const [txSearch, setTxSearch] = useState('');
 
-  const allTx = userTransactions || ALL_TRANSACTIONS;
+  const allTx = userTransactions || [];
   const filteredTx = allTx.filter(tx =>
     txSearch === '' ||
     tx.recipient.toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -100,39 +87,47 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-x-auto border dark:border-slate-700">
-        <table className="w-full text-left text-xs min-w-[580px]">
-          <thead className="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-400">
-            <tr>
-              <th className="p-4">Lloji</th>
-              <th className="p-4">Përfituesi</th>
-              <th className="p-4">Qyteti / Pajisja</th>
-              <th className="p-4">Data</th>
-              <th className="p-4 text-right">Shuma</th>
-              <th className="p-4 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-            {filteredTx.map(tx => (
-              <tr key={tx.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 ${tx.fraud ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-                <td className="p-4 font-medium">{tx.type}</td>
-                <td className="p-4">{tx.recipient}</td>
-                <td className="p-4 text-slate-400">{tx.city} · {tx.device}</td>
-                <td className="p-4 text-slate-400">{tx.date}</td>
-                <td className={`p-4 text-right font-bold ${tx.amount === null ? '' : tx.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                  {tx.amount !== null ? `${tx.amount > 0 ? '+' : ''}€${Math.abs(tx.amount).toFixed(2)}` : '—'}
-                </td>
-                <td className="p-4 text-center">
-                  {tx.fraud
-                    ? <span className="px-2 py-1 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-full font-bold text-[10px]"><i className="fas fa-ban mr-1"></i>FRAUD</span>
-                    : <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-full font-bold text-[10px]"><i className="fas fa-check mr-1"></i>OK</span>
-                  }
-                </td>
+      {userTransactions === null ? (
+        <div className="flex items-center justify-center py-20 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700">
+          <i className="fas fa-spinner fa-spin text-blue-600 text-3xl"></i>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-x-auto border dark:border-slate-700">
+          <table className="w-full text-left text-xs min-w-[580px]">
+            <thead className="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-400">
+              <tr>
+                <th className="p-4">Lloji</th>
+                <th className="p-4">Përfituesi</th>
+                <th className="p-4">Qyteti / Pajisja</th>
+                <th className="p-4">Data</th>
+                <th className="p-4 text-right">Shuma</th>
+                <th className="p-4 text-center">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              {filteredTx.length === 0 ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">Nuk u gjetën transaksione.</td></tr>
+              ) : filteredTx.map(tx => (
+                <tr key={tx.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 ${tx.fraud ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                  <td className="p-4 font-medium">{tx.type}</td>
+                  <td className="p-4">{tx.recipient}</td>
+                  <td className="p-4 text-slate-400">{tx.city} · {tx.device}</td>
+                  <td className="p-4 text-slate-400">{tx.date}</td>
+                  <td className={`p-4 text-right font-bold ${tx.amount === null ? '' : tx.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                    {tx.amount !== null ? `${tx.amount > 0 ? '+' : ''}€${Math.abs(tx.amount).toFixed(2)}` : '—'}
+                  </td>
+                  <td className="p-4 text-center">
+                    {tx.fraud
+                      ? <span className="px-2 py-1 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-full font-bold text-[10px]"><i className="fas fa-ban mr-1"></i>FRAUD</span>
+                      : <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-full font-bold text-[10px]"><i className="fas fa-check mr-1"></i>OK</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

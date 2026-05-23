@@ -1,7 +1,7 @@
 import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from sqlalchemy.orm import Session
 
 from database import get_db, User
@@ -20,8 +20,10 @@ def get_current_user(
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Sesioni juaj skadoi. Hyni sërish.")
     except (JWTError, TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")

@@ -446,6 +446,122 @@ def get_decision_breakdown(
     return {(decision or "UNKNOWN"): count for decision, count in rows}
 
 
+# ── Live Transfer endpoint (TASK 2) ──────────────────────────────────────────
+
+class TransferPayload(BaseModel):
+    recipient_name: str
+    recipient_iban: str
+    amount: float
+    note: Optional[str] = None
+
+
+@router.post("/api/transfer")
+def execute_transfer(
+    body: TransferPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if body.amount <= 0:
+        raise HTTPException(status_code=400, detail="Shuma duhet të jetë pozitive.")
+
+    current_balance = float(current_user.balance or 0)
+    if current_balance < body.amount:
+        raise HTTPException(status_code=400, detail="Bilanci i pamjaftueshëm.")
+
+    # High-amount hard rule — guaranteed BLOCK for live demo (≥ €8 000)
+    if body.amount >= 8000:
+        risk_score = 0.94
+        reason = (
+            f"Transfertë prej €{body.amount:.2f} tejkalon limitin e sigurisë. "
+            "GuardianAI e bllokoi automatikisht."
+        )
+        alert = FraudAlert(
+            user_id=current_user.id,
+            alert_type="high_amount_transfer",
+            severity="critical",
+            message=(
+                f"Tentativë transferte me shumë të lartë: "
+                f"€{body.amount:.2f} → {body.recipient_name}. Bllokuar."
+            ),
+        )
+        db.add(alert)
+        db.commit()
+        return {
+            "decision": "BLOCK",
+            "risk_score": risk_score,
+            "reason": reason,
+            "amount": body.amount,
+            "recipient": body.recipient_name,
+            "new_balance": None,
+        }
+
+    # ML fraud check for normal amounts
+    fraud_input = {
+        "event_type": "transaction",
+        "client_id": current_user.username,
+        "amount": body.amount,
+        "ip_address": "127.0.0.1",
+        "device_id": "web-browser",
+        "timestamp": datetime.now().isoformat(),
+        "profile": profile_manager.get_profile(current_user.username) or {},
+    }
+    risk_score = predict(fraud_input)
+    decision_details = response_engine.get_decision_details(risk_score, current_user.username)
+    decision = decision_details["decision"]
+    reason = decision_details.get("reason", "")
+
+    new_balance = None
+
+    if decision == "ALLOW":
+        current_user.balance = Decimal(str(round(current_balance - body.amount, 2)))
+        txn = Transaction(
+            user_id=current_user.id,
+            tx_type="Transfer",
+            recipient=body.recipient_name,
+            amount=Decimal(str(-round(body.amount, 2))),
+            city="Tiranë",
+            device="Web Browser",
+            is_fraud=False,
+        )
+        db.add(txn)
+        db.commit()
+        db.refresh(current_user)
+        new_balance = float(current_user.balance)
+    elif decision == "BLOCK":
+        alert = FraudAlert(
+            user_id=current_user.id,
+            alert_type="suspicious_transfer",
+            severity="critical",
+            message=(
+                f"Transfertë e bllokuar: €{body.amount:.2f} → {body.recipient_name}. "
+                f"Risk score: {round(risk_score, 2)}."
+            ),
+        )
+        db.add(alert)
+        db.commit()
+    elif decision == "MFA_CHALLENGE":
+        alert = FraudAlert(
+            user_id=current_user.id,
+            alert_type="suspicious_transfer",
+            severity="high",
+            message=(
+                f"Transfertë e dyshimtë kërkon verifikim shtesë: "
+                f"€{body.amount:.2f} → {body.recipient_name}."
+            ),
+        )
+        db.add(alert)
+        db.commit()
+
+    return {
+        "decision": decision,
+        "risk_score": round(risk_score, 4),
+        "reason": reason,
+        "amount": body.amount,
+        "recipient": body.recipient_name,
+        "new_balance": new_balance,
+    }
+
+
 # ── Serialisation helpers ─────────────────────────────────────────────────────
 
 def _event_to_dict(e: Event) -> dict:

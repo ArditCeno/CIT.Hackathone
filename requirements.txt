@@ -10,3 +10,11 @@ joblib>=1.4.0             # model serialisation
 pandas>=2.2.0             # CSV loading & feature prep
 numpy>=1.26.0             # numeric arrays
 requests>=2.31.0          # HTTP client
+
+# Auth + database
+sqlalchemy>=2.0.0         # ORM
+psycopg2-binary>=2.9.9    # PostgreSQL driver (sync)
+passlib[bcrypt]>=1.7.4    # password hashing (requires bcrypt==4.0.1, not 5.x)
+bcrypt==4.0.1             # passlib is incompatible with bcrypt 5.x
+python-jose[cryptography]>=3.3.0  # JWT
+python-dotenv>=1.0.0      # .env loading

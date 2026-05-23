@@ -14,26 +14,49 @@ export default function LoginPage() {
   const [captchaChecked, setCaptchaChecked] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
   const [showLoginPass,  setShowLoginPass]  = useState(false);
+  const [errorMsg,       setErrorMsg]       = useState('');
+  const [isLoading,      setIsLoading]      = useState(false);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!captchaChecked) { triggerToast('Ju lutem plotësoni CAPTCHA-n!', 'error'); return; }
+    setErrorMsg('');
+    if (!captchaChecked) { setErrorMsg('Ju lutem plotësoni CAPTCHA-n para se të vazhdoni!'); return; }
+    setIsLoading(true);
+    let success = false;
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginEmail, password: loginPassword, pin: loginPin }),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      let res;
+      try {
+        res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: loginEmail, password: loginPassword, pin: loginPin }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        triggerToast(err.detail || 'Kredencialet janë të gabuara!', 'error'); return;
+        setErrorMsg(err.detail || 'Kredencialet janë të gabuara!');
+        return;
       }
       const data = await res.json();
       localStorage.setItem(TOKEN_KEY, data.access_token);
       setCurrentUser(data.user);
       triggerToast(`Mirë se erdhe, ${data.user.full_name}!`, 'success');
+      success = true;
       navigate('/dashboard');
-    } catch { triggerToast('Server i paarritshëm. Provoni sërish.', 'error'); }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        setErrorMsg('Kërkesa skadoi. Kontrolloni lidhjen dhe provoni sërish.');
+      } else {
+        setErrorMsg('Server i paarritshëm. Provoni sërish.');
+      }
+    } finally {
+      if (!success) setIsLoading(false);
+    }
   };
 
   return (
@@ -94,7 +117,15 @@ export default function LoginPage() {
             </div>
             <i className="fas fa-shield-halved text-blue-600 text-lg"></i>
           </div>
-          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white py-3 rounded-xl font-bold text-sm transition">Hyni në Llogari</button>
+          {errorMsg && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 text-xs px-4 py-3 rounded-xl flex items-center gap-2">
+              <i className="fas fa-times-circle flex-shrink-0"></i>
+              <span>{errorMsg}</span>
+            </div>
+          )}
+          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2">
+            {isLoading ? <><i className="fas fa-spinner fa-spin"></i> Duke u kyçur...</> : 'Hyni në Llogari'}
+          </button>
         </form>
         <p className="text-center text-xs text-slate-500 mt-6">
           Pa llogari? <button onClick={() => navigate('/register')} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer ml-1">Regjistrohu</button>

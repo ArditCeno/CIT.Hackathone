@@ -142,6 +142,11 @@ export default function App() {
   const [adminUsers, setAdminUsers] = useState(null);
   const [adminEvents, setAdminEvents] = useState(null);
 
+  // Chart data
+  const [chartData,          setChartData]          = useState(null);
+  const [decisionBreakdown,  setDecisionBreakdown]  = useState(null);
+  const [statsLoading,       setStatsLoading]       = useState(false);
+
   // Mock data from server
   const [mockData, setMockData] = useState(null);
 
@@ -150,6 +155,8 @@ export default function App() {
   const countdownTimerRef  = useRef(null);
   const chartRef           = useRef(null);
   const chartInstanceRef   = useRef(null);
+  const pieChartRef        = useRef(null);
+  const pieChartInst       = useRef(null);
   const INACTIVITY_TIME    = 90000;
 
   // ── Derived USER (replaces removed top-level const) ─────────────────────────
@@ -208,14 +215,33 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) return;
-    loadUserData();
     const h = _bearer();
+    setStatsLoading(true);
+    loadUserData();
+
+    fetch('/api/dashboard/chart-data', { headers: h })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setChartData(d))
+      .catch(() => {});
+
     if (currentUser.role === 'user') {
-      fetch('/api/dashboard/my-stats', { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setMyStats(d)).catch(() => {});
+      fetch('/api/dashboard/my-stats', { headers: h })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { d && setMyStats(d); setStatsLoading(false); })
+        .catch(() => setStatsLoading(false));
     } else if (currentUser.role === 'admin') {
-      fetch('/api/dashboard/stats',  { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setAdminStats(d)).catch(() => {});
-      fetch('/api/dashboard/users',  { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setAdminUsers(d)).catch(() => {});
-      fetch('/api/dashboard/events', { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setAdminEvents(d)).catch(() => {});
+      Promise.all([
+        fetch('/api/dashboard/stats',              { headers: h }).then(r => r.ok ? r.json() : null),
+        fetch('/api/dashboard/users',              { headers: h }).then(r => r.ok ? r.json() : null),
+        fetch('/api/dashboard/events',             { headers: h }).then(r => r.ok ? r.json() : null),
+        fetch('/api/dashboard/decision-breakdown', { headers: h }).then(r => r.ok ? r.json() : null),
+      ]).then(([stats, users, events, breakdown]) => {
+        stats     && setAdminStats(stats);
+        users     && setAdminUsers(users);
+        events    && setAdminEvents(events);
+        breakdown && setDecisionBreakdown(breakdown);
+        setStatsLoading(false);
+      }).catch(() => setStatsLoading(false));
     }
   }, [currentUser?.id]);
 
@@ -267,30 +293,42 @@ export default function App() {
 
   // ── Chart.js ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (currentPage !== 'dashboard' || !chartRef.current || !mockData) return;
+    if (currentPage !== 'dashboard' || !chartRef.current) return;
     if (chartInstanceRef.current) chartInstanceRef.current.destroy();
 
-    const monthly = {};
-    (mockData.fraud_timeline || []).forEach(({ date, total_events, fraud_events }) => {
-      const mo = date.slice(0, 7);
-      if (!monthly[mo]) monthly[mo] = { total: 0, fraud: 0 };
-      monthly[mo].total += total_events;
-      monthly[mo].fraud += fraud_events;
-    });
-
     const MONTH_NAMES = ['Jan','Shk','Mar','Pri','Maj','Qer','Kor','Gus','Sht','Tet','Nën','Dhj'];
-    const sorted = Object.keys(monthly).sort();
-    const labels    = sorted.map(m => MONTH_NAMES[parseInt(m.split('-')[1]) - 1]);
-    const totalData = sorted.map(m => monthly[m].total);
-    const fraudData = sorted.map(m => monthly[m].fraud);
+    let labels, totalData, fraudData;
+
+    if (chartData && chartData.length > 0) {
+      labels    = chartData.map(d => {
+        const dt = new Date(d.date);
+        return `${MONTH_NAMES[dt.getMonth()]} ${dt.getDate()}`;
+      });
+      totalData = chartData.map(d => d.total);
+      fraudData = chartData.map(d => d.fraud);
+    } else if (mockData?.fraud_timeline) {
+      const monthly = {};
+      (mockData.fraud_timeline || []).forEach(({ date, total_events, fraud_events }) => {
+        const mo = date.slice(0, 7);
+        if (!monthly[mo]) monthly[mo] = { total: 0, fraud: 0 };
+        monthly[mo].total += total_events;
+        monthly[mo].fraud += fraud_events;
+      });
+      const sorted = Object.keys(monthly).sort();
+      labels    = sorted.map(m => MONTH_NAMES[parseInt(m.split('-')[1]) - 1]);
+      totalData = sorted.map(m => monthly[m].total);
+      fraudData = sorted.map(m => monthly[m].fraud);
+    } else {
+      return;
+    }
 
     chartInstanceRef.current = new Chart(chartRef.current.getContext('2d'), {
       type: 'line',
       data: {
         labels,
         datasets: [
-          { label: 'Total Events', data: totalData, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 3 },
-          { label: 'Fraud Events', data: fraudData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',  fill: true, tension: 0.3, pointRadius: 3 },
+          { label: 'Total Events',   data: totalData, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 3 },
+          { label: 'Fraud / Blocked', data: fraudData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.3, pointRadius: 3 },
         ],
       },
       options: {
@@ -304,7 +342,34 @@ export default function App() {
     });
 
     return () => { if (chartInstanceRef.current) chartInstanceRef.current.destroy(); };
-  }, [currentPage, mockData]);
+  }, [currentPage, chartData, mockData]);
+
+  useEffect(() => {
+    if (currentPage !== 'dashboard' || !pieChartRef.current || !decisionBreakdown) return;
+    if (pieChartInst.current) pieChartInst.current.destroy();
+
+    const labels = Object.keys(decisionBreakdown);
+    const values = Object.values(decisionBreakdown);
+    const colors = labels.map(l =>
+      l === 'ALLOW' ? '#22c55e' : l === 'MFA_CHALLENGE' ? '#eab308' : l === 'BLOCK' ? '#ef4444' : '#94a3b8'
+    );
+
+    pieChartInst.current = new Chart(pieChartRef.current.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#1e293b' }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 10 }, color: '#94a3b8' } },
+        },
+      },
+    });
+
+    return () => { if (pieChartInst.current) pieChartInst.current.destroy(); };
+  }, [currentPage, decisionBreakdown]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const resetSessionTimeout = () => {
@@ -323,6 +388,7 @@ export default function App() {
     localStorage.removeItem(TOKEN_KEY);
     setCurrentUser(null); setUserTransactions(null); setUserAlerts(null);
     setMyStats(null); setAdminStats(null); setAdminUsers(null); setAdminEvents(null);
+    setChartData(null); setDecisionBreakdown(null); setStatsLoading(false);
     triggerToast('U çidentifikuat në mënyrë të sigurt.', 'error');
     setScanResult(null); setCurrentPage('login');
   };
@@ -350,6 +416,19 @@ export default function App() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
+    if (regUsername.trim().length < 3) {
+      triggerToast('Emri i përdoruesit duhet të ketë të paktën 3 karaktere!', 'error'); return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(regEmail)) {
+      triggerToast('Ju lutem vendosni një email të vlefshëm!', 'error'); return;
+    }
+    if (regPassword.length < 6) {
+      triggerToast('Fjalëkalimi duhet të ketë të paktën 6 karaktere!', 'error'); return;
+    }
+    if (!/^\d{4}$/.test(regPin)) {
+      triggerToast('PIN-i duhet të jetë saktësisht 4 shifra!', 'error'); return;
+    }
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -393,6 +472,40 @@ export default function App() {
     });
   };
 
+  const markAlertRead = async (alertId) => {
+    try {
+      const res = await fetch(`/api/me/alerts/${alertId}/read`, {
+        method: 'PATCH',
+        headers: _bearer(),
+      });
+      if (res.ok) {
+        setUserAlerts(prev => prev ? prev.map(a => a.id === alertId ? { ...a, is_read: true } : a) : prev);
+        triggerToast('Njoftimi u shënua si i lexuar.', 'success');
+      }
+    } catch { triggerToast('Gabim gjatë përditësimit.', 'error'); }
+  };
+
+  const downloadCSV = () => {
+    const headers = ['ID', 'Data', 'Tipi', 'Destinatari', 'Shuma (EUR)', 'Qyteti', 'Pajisja', 'Mashtrim'];
+    const rows = allTx.map(tx => [
+      tx.id,
+      tx.date,
+      tx.type,
+      tx.recipient,
+      tx.amount ?? '',
+      tx.city ?? '',
+      tx.device ?? '',
+      tx.fraud ? 'PO' : 'JO',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'guardianai-transaksionet.csv'; a.click();
+    URL.revokeObjectURL(url);
+    triggerToast('Transaksionet u shkarkuan si CSV!', 'success');
+  };
+
   // Nav helpers
   const navTo = (page) => { setCurrentPage(page); setMobileNavOpen(false); };
 
@@ -407,6 +520,7 @@ export default function App() {
       : 'flex-shrink-0 px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors text-xs';
 
   const allTx = userTransactions || ALL_TRANSACTIONS;
+  const unreadCount = userAlerts ? userAlerts.filter(a => !a.is_read).length : (myStats?.unread_alerts ?? 0);
   const filteredTx = allTx.filter(tx =>
     txSearch === '' || tx.recipient.toLowerCase().includes(txSearch.toLowerCase()) || tx.type.toLowerCase().includes(txSearch.toLowerCase())
   );
@@ -632,7 +746,15 @@ export default function App() {
                 <button onClick={() => navTo('transactions')}  className={getSidebarClass('transactions')}><i className="fas fa-exchange-alt w-5 text-blue-500"></i>Transaksionet</button>
                 <button onClick={() => navTo('transfer')}      className={getSidebarClass('transfer')}><i className="fas fa-paper-plane w-5 text-blue-500"></i>Transfero Para</button>
                 <button onClick={() => navTo('cards')}         className={getSidebarClass('cards')}><i className="fas fa-credit-card w-5 text-blue-500"></i>Kartat e Mia</button>
-                <button onClick={() => navTo('security')}      className={getSidebarClass('security')}><i className="fas fa-shield-halved w-5 text-blue-500"></i>Siguria</button>
+                <button onClick={() => navTo('security')} className={getSidebarClass('security')}>
+                  <i className="fas fa-shield-halved w-5 text-blue-500"></i>
+                  Siguria
+                  {unreadCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
               </nav>
             </div>
 
@@ -678,7 +800,17 @@ export default function App() {
 
                   {/* Stats row */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {statCards.map(({ label, value, icon, color }) => (
+                    {statsLoading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-3 animate-pulse">
+                          <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
+                          <div className="space-y-2 flex-1">
+                            <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-12"></div>
+                            <div className="h-3 bg-slate-100 dark:bg-slate-600 rounded w-20"></div>
+                          </div>
+                        </div>
+                      ))
+                    ) : statCards.map(({ label, value, icon, color }) => (
                       <div key={label} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                           color === 'blue'   ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' :
@@ -831,15 +963,45 @@ export default function App() {
 
                       {scanResult && !scanLoading && (() => {
                         const s = ACTION_STYLE[scanResult.action] || ACTION_STYLE.ERROR;
+                        const rawScore = scanResult.score ?? 0;
+                        const riskPct = scanResult.action === 'BLOCK'
+                          ? Math.min(100, Math.max(80, 95))
+                          : scanResult.action === 'MFA_CHALLENGE'
+                          ? Math.min(79, Math.max(40, Math.round(50 + (-rawScore) * 40)))
+                          : Math.min(39, Math.max(0, Math.round(20 + (-rawScore) * 20)));
+                        const gaugeColor = riskPct >= 80 ? '#ef4444' : riskPct >= 40 ? '#eab308' : '#22c55e';
                         return (
                           <div className={`rounded-xl border-2 ${s.bg} ${s.border} p-4`}>
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className={`${s.badge} text-white w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0`}>
-                                <i className={`fas ${s.icon} text-lg`}></i>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-3">
+                              <div className="flex items-center gap-3 flex-1">
+                                <div className={`${s.badge} text-white w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0`}>
+                                  <i className={`fas ${s.icon} text-lg`}></i>
+                                </div>
+                                <div>
+                                  <p className={`text-xl font-black ${s.text}`}>{scanResult.action?.replace('_', ' ')}</p>
+                                  <p className="text-xs text-slate-400">
+                                    Raw score: <span className="font-mono font-bold">{rawScore.toFixed(4)}</span>
+                                    {scanResult.latency_ms ? ` · ${scanResult.latency_ms.toFixed(1)}ms` : ''}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <p className={`text-xl font-black ${s.text}`}>{scanResult.action?.replace('_', ' ')}</p>
-                                <p className="text-xs text-slate-400">Score: <span className="font-mono font-bold">{scanResult.score?.toFixed(6)}</span>{scanResult.latency_ms ? ` · ${scanResult.latency_ms.toFixed(1)}ms` : ''}</p>
+                              <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                <div className="relative w-16 h-16">
+                                  <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                                    <circle
+                                      cx="18" cy="18" r="15.9" fill="none"
+                                      stroke={gaugeColor} strokeWidth="3"
+                                      strokeDasharray={`${riskPct} 100`}
+                                      strokeLinecap="round"
+                                      style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                                    />
+                                  </svg>
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xs font-black" style={{ color: gaugeColor }}>{riskPct}%</span>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-semibold uppercase">Risk</span>
                               </div>
                             </div>
                             <p className={`text-xs leading-relaxed ${s.text}`}>{scanResult.reason}</p>
@@ -848,6 +1010,41 @@ export default function App() {
                       })()}
                     </div>
                   </div>
+
+                  {/* ── ADMIN: Decision Breakdown Pie Chart ──────────────── */}
+                  {currentUser?.role === 'admin' && decisionBreakdown && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <h3 className="font-bold text-xs mb-4 uppercase text-slate-400 tracking-wider">
+                          <i className="fas fa-chart-pie mr-2 text-blue-500"></i>Vendime sipas Tipit
+                        </h3>
+                        <div className="h-52 relative"><canvas ref={pieChartRef}></canvas></div>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <h3 className="font-bold text-xs mb-4 uppercase text-slate-400 tracking-wider">
+                          <i className="fas fa-shield-halved mr-2 text-blue-500"></i>Statistika të Shpejta
+                        </h3>
+                        <div className="space-y-3">
+                          {Object.entries(decisionBreakdown).map(([decision, count]) => {
+                            const total = Object.values(decisionBreakdown).reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                            const color = decision === 'ALLOW' ? 'bg-green-500' : decision === 'MFA_CHALLENGE' ? 'bg-yellow-500' : 'bg-red-500';
+                            return (
+                              <div key={decision}>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="font-semibold text-slate-600 dark:text-slate-300">{decision.replace('_', ' ')}</span>
+                                  <span className="font-mono font-bold">{count} <span className="text-slate-400">({pct}%)</span></span>
+                                </div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                                  <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }}></div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── ADMIN: Users at Risk ─────────────────────────────── */}
                   {currentUser?.role === 'admin' && adminUsers && (
@@ -942,9 +1139,18 @@ export default function App() {
                       <h2 className="text-xl font-bold">Historia e Transaksioneve</h2>
                       <p className="text-slate-500 text-xs mt-0.5">Kërkoni dhe filtroni aktivitetin tuaj bankar.</p>
                     </div>
-                    <div className="relative w-full sm:w-72">
-                      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                      <input type="text" value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Kërko (përfitues, lloji)..." className="w-full pl-9 pr-4 py-2.5 text-xs border dark:border-slate-700 rounded-xl bg-transparent outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:w-72">
+                        <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Kërko (përfitues, lloji)..." className="w-full pl-9 pr-4 py-2.5 text-xs border dark:border-slate-700 rounded-xl bg-transparent outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <button
+                        onClick={downloadCSV}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex-shrink-0"
+                      >
+                        <i className="fas fa-download"></i>
+                        <span className="hidden sm:inline">Shkarko CSV</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1134,6 +1340,50 @@ export default function App() {
                     <h2 className="text-2xl font-bold"><i className="fas fa-shield-halved text-blue-600 mr-2"></i>Siguria & Cilësimet</h2>
                     <p className="text-slate-500 text-xs mt-0.5">GuardianAI mbron llogarinë tuaj 24/7 — analizë e aktivitetit, detektim smishing dhe bllokues phishing.</p>
                   </div>
+
+                  {/* Fraud Alerts */}
+                  {userAlerts && userAlerts.length > 0 && (
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">
+                      <div className="px-5 py-3 border-b dark:border-slate-700 flex items-center gap-2">
+                        <i className="fas fa-bell text-red-500"></i>
+                        <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider">Njoftime Mashtrimi</h3>
+                        {unreadCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{unreadCount} të palexuara</span>
+                        )}
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {userAlerts.map(alert => (
+                          <div key={alert.id} className={`flex items-start gap-3 px-5 py-4 ${!alert.is_read ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs mt-0.5 ${
+                              alert.severity === 'critical' ? 'bg-red-600' : alert.severity === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
+                            }`}>
+                              <i className="fas fa-triangle-exclamation"></i>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                  alert.severity === 'critical' ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
+                                  alert.severity === 'high'     ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600' :
+                                  'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700'
+                                }`}>{alert.severity?.toUpperCase()}</span>
+                                {!alert.is_read && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 font-bold px-2 py-0.5 rounded-full">E RE</span>}
+                              </div>
+                              <p className="text-xs mt-1 text-slate-700 dark:text-slate-300">{alert.message}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{alert.created_at ? alert.created_at.slice(0, 16).replace('T', ' ') : ''}</p>
+                            </div>
+                            {!alert.is_read && (
+                              <button
+                                onClick={() => markAlertRead(alert.id)}
+                                className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex-shrink-0 mt-1"
+                              >
+                                Shëno si lexuar
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* City Risk Heatmap */}
                   <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">

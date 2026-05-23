@@ -411,6 +411,41 @@ def list_users(
     return [_safe_user(u) for u in db.query(User).order_by(User.created_at.desc()).all()]
 
 
+# ── Chart data endpoints ──────────────────────────────────────────────────────
+
+@router.get("/api/dashboard/chart-data")
+def get_chart_data(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import cast, Date as SADate, case
+    if current_user.role == "admin":
+        rows = db.query(
+            cast(Event.created_at, SADate).label("date"),
+            sqlfunc.count(Event.id).label("total"),
+            sqlfunc.sum(case((Event.decision == "BLOCK", 1), else_=0)).label("fraud"),
+        ).group_by(cast(Event.created_at, SADate)).order_by(cast(Event.created_at, SADate)).all()
+    else:
+        rows = db.query(
+            cast(Transaction.created_at, SADate).label("date"),
+            sqlfunc.count(Transaction.id).label("total"),
+            sqlfunc.sum(case((Transaction.is_fraud == True, 1), else_=0)).label("fraud"),
+        ).filter(Transaction.user_id == current_user.id).group_by(
+            cast(Transaction.created_at, SADate)
+        ).order_by(cast(Transaction.created_at, SADate)).all()
+
+    return [{"date": str(r.date), "total": int(r.total), "fraud": int(r.fraud or 0)} for r in rows]
+
+
+@router.get("/api/dashboard/decision-breakdown")
+def get_decision_breakdown(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    rows = db.query(Event.decision, sqlfunc.count(Event.id)).group_by(Event.decision).all()
+    return {(decision or "UNKNOWN"): count for decision, count in rows}
+
+
 # ── Serialisation helpers ─────────────────────────────────────────────────────
 
 def _event_to_dict(e: Event) -> dict:

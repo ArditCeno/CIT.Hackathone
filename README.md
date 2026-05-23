@@ -2,6 +2,38 @@
 
 Platformë e fuqizuar me AI për zbulimin dhe parandalimin e mashtrimit bankar — ndërtuar për FiBank Hackathon.
 
+## 🚀 Quick Start
+
+Double-click `start.bat` to launch all three servers, then open http://localhost:5173
+
+## 👤 Demo Accounts
+
+| Username | Password | PIN  | Role  | Description |
+|----------|----------|------|-------|-------------|
+| admin    | admin123 | 0000 | Admin | Full system view, all users, fraud stats |
+| arjola   | user123  | 1234 | User  | Normal user with 2 fraud incidents |
+| besnik   | user123  | 5678 | User  | High-balance user with 1 critical fraud |
+| erjon    | user123  | 1357 | User  | High-risk user with multiple frauds |
+| elona    | user123  | 2468 | User  | Clean user, no fraud history |
+
+## 🎯 Demo Script for Judges
+
+**Scenario 1 — Normal user flow:**
+1. Login as `arjola` / `user123` / PIN `1234`
+2. See balance €4,287.50 and fraud alert badges
+3. Go to GuardianAI Scanner → click "Normal" → see ALLOW + green gauge
+
+**Scenario 2 — Fraud detection:**
+1. On the scanner → click "Account Takeover" → see MFA_CHALLENGE
+2. Click "Phishing URL" → see immediate BLOCK
+3. Check Security tab → see unread fraud alerts with mark-as-read
+
+**Scenario 3 — Admin view:**
+1. Logout → login as `admin` / `admin123` / PIN `0000`
+2. See global fraud rate, decision breakdown pie chart
+3. See "Users at Risk" table — erjon and arjola highlighted
+4. See all events with risk scores
+
 
 📌 Ç'është GuardianAI?
 Problemi: Klientët e FiBank janë të ekspozuar ndaj sulmeve si smishing, phishing, dhe credential theft. Banka nuk disponon një sistem inteligjent për të zbuluar dhe parandaluar këto kërcënime në kohë reale.

@@ -62,16 +62,20 @@ CIT.Hackathone/
 
 ⚙️ Si Funksionon Motori i Vlerësimit
 Sistemi përdor dy shtresa vendimmarrjeje:
+
 ┌─────────────────────────────────────────┐
 │  SHTRESA 1 — Rregulla Biznesi (O(1))    │
 │  Nëse zbulohet phishing → BLLOKO        │
 └──────────────────┬──────────────────────┘
-                   │ të gjitha rregullat kaluan
+                   │
+                   të gjitha rregullat kaluan
+                   
 ┌──────────────────▼──────────────────────┐
 │  SHTRESA 2 — Isolation Forest (ML)      │
 │  Anomali  → MFA_CHALLENGE               │
 │  Normal   → ALLOW                       │
 └─────────────────────────────────────────┘
+
 Vendimet e mundshme:
 VendimKuptimiALLOWTransaksion normal, lejohetMFA_CHALLENGEAnomali e zbuluar, kërkohet verifikim shtesëBLOCKPhishing/smishing i zbuluar, bllokohet menjëherë
 

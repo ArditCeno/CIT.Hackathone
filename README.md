@@ -24,6 +24,7 @@ Double-click `start.bat` to launch all three servers, then open http://localhost
 3. Go to GuardianAI Scanner → click "Normal" → see ALLOW + green gauge
 
 **Scenario 2 — Fraud detection:**
+
 1. On the scanner → click "Account Takeover" → see MFA_CHALLENGE
 2. Click "Phishing URL" → see immediate BLOCK
 3. Check Security tab → see unread fraud alerts with mark-as-read
@@ -42,22 +43,39 @@ Zgjidhja: GuardianAI është një platformë AI që analizon transaksionet dhe s
 🗂️ Struktura e Projektit
 CIT.Hackathone/
 ├── main.py                      # Pika e hyrjes së serverit FastAPI
+
 ├── fraud_api.py                 # API kryesore e zbulimit të mashtrimit
+
 ├── scoring_engine.py            # Motori hibrid i vlerësimit (Rregulla + ML)
+
 ├── train.py                     # Trajnimi i modelit të ML
+
 ├── model.joblib                 # Modeli i trajnuar (Isolation Forest)
+
 ├── database.py                  # Inicializimi i bazës së të dhënave
+
 ├── fraud_synthetic_dataset.csv  # Dataset sintetik për trajnim
+
 ├── requirements.txt             # Varësitë e Python
+
 ├── api/
+
 │   └── endpoints.py             # Endpoint-et e API-t
+
 ├── models/
+
 │   ├── behaviour_profile.py     # Profilizimi i sjelljes së klientit
+
 │   ├── fraud_engine.py          # Logjika kryesore e zbulimit
+
 │   └── response_engine.py      # Gjenerimi i përgjigjeve
+
 └── frontend/                   # Ndërfaqja React + Vite
+
     ├── src/
+    
     ├── index.html
+    
     └── package.json
 
 ⚙️ Si Funksionon Motori i Vlerësimit

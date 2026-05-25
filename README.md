@@ -19,9 +19,12 @@ Double-click `start.bat` to launch all three servers, then open http://localhost
 ## 🎯 Demo Script for Judges
 
 **Scenario 1 — Normal user flow:**
-1. Login as `arjola` / `user123` / PIN `1234`
-2. See balance €4,287.50 and fraud alert badges
-3. Go to GuardianAI Scanner → click "Normal" → see ALLOW + green gauge
+<p align="center">
+  <img src="assets/UserScenarioDEMO.gif" alt="User Scenario Demo" width="100%" max-width="800px"/>
+</p>
+* Login as **elona** / **user123** / PIN **2468**
+* See balance and fraud alert badges
+* Go to GuardianAI Scanner → click "Normal" → see ALLOW + green gauge
 
 **Scenario 2 — Fraud detection:**
 
@@ -30,6 +33,9 @@ Double-click `start.bat` to launch all three servers, then open http://localhost
 3. Check Security tab → see unread fraud alerts with mark-as-read
 
 **Scenario 3 — Admin view:**
+<p align="center">
+  <img src="assets/AdminScenarioDEMO.gif" alt="Admin Scenario Demo" width="100%" max-width="800px"/>
+</p>
 1. Logout → login as `admin` / `admin123` / PIN `0000`
 2. See global fraud rate, decision breakdown pie chart
 3. See "Users at Risk" table — erjon and arjola highlighted
@@ -57,6 +63,10 @@ CIT.Hackathone/
 ├── fraud_synthetic_dataset.csv  # Dataset sintetik për trajnim
 
 ├── requirements.txt             # Varësitë e Python
+
+├── assets/                      # Dokumentacioni mediatik (GIFs)
+│   ├── AdminScenarioDEMO.gif
+│   └── UserScenarioDEMO.gif
 
 ├── api/
 

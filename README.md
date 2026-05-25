@@ -71,11 +71,10 @@ CIT.Hackathone/
 │   └── response_engine.py      # Gjenerimi i përgjigjeve
 
 └── frontend/                   # Ndërfaqja React + Vite
-
     ├── src/
-    
+    |
     ├── index.html
-    
+    |
     └── package.json
 
 ⚙️ Si Funksionon Motori i Vlerësimit

@@ -91,13 +91,14 @@ CIT.Hackathone/
 Sistemi përdor dy shtresa vendimmarrjeje:
 
 ┌─────────────────────────────────────────┐
-│  SHTRESA 1 — Rregulla Biznesi (O(1)) 
+│  SHTRESA 1 — Rregulla Biznesi (O(1))    |
 │
 │  Nëse zbulohet phishing → BLLOKO        │
 └──────────────────┬──────────────────────┘
                    │
+                   |
                    të gjitha rregullat kaluan
-                   
+                   |
 ┌──────────────────▼──────────────────────┐
 │  SHTRESA 2 — Isolation Forest (ML)      │
 │  Anomali  → MFA_CHALLENGE               │

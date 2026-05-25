@@ -124,7 +124,7 @@ class ScoringEngine:
         # ── Layer 2: Isolation Forest ─────────────────────────────────────────
         score  = self._ml_score(tx_data)
         result = self._ml_decision(score, tx_data)
-        log.info(f"[IsoForest]  {result['action']} | score={score:.4f} | {result['reason']}")
+        log.info(f"[RandomForest] {result['action']} | prob={score:.4f} | {result['reason']}")
         return result
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -223,17 +223,16 @@ class ScoringEngine:
         return None  # all rules passed → escalate to ML layer
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PRIVATE — ISOLATION FOREST INFERENCE
+    # PRIVATE — RANDOM FOREST INFERENCE
     # ─────────────────────────────────────────────────────────────────────────
     def _ml_score(self, tx: dict[str, Any]) -> float:
         """
         Build a feature vector from tx and run it through the trained Pipeline
-        (StandardScaler → IsolationForest).
+        (StandardScaler → RandomForestClassifier).
 
-        Returns the raw decision_function score.
-        Convention: more negative = more anomalous.
+        Returns the fraud probability in [0.0, 1.0].
+        Convention: higher = more likely fraud.
         """
-        # Assemble the feature vector in the exact order the model was trained on.
         vector = []
         for col in self._feature_cols:
             val = tx.get(col)
@@ -244,46 +243,48 @@ class ScoringEngine:
 
         X = np.array(vector, dtype=np.float64).reshape(1, -1)
 
-        # decision_function: negative = anomalous, positive = normal
-        score = float(self._pipeline.decision_function(X)[0])
-        return score
+        # predict_proba returns [[prob_normal, prob_fraud]]; take fraud probability
+        prob = float(self._pipeline.predict_proba(X)[0][1])
+        return prob
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PRIVATE — MAP SCORE TO ACTION
+    # PRIVATE — MAP PROBABILITY TO ACTION
     # ─────────────────────────────────────────────────────────────────────────
     def _ml_decision(self, score: float, tx: dict[str, Any]) -> dict[str, Any]:
         """
-        Map the Isolation Forest output to a business action.
+        Map the RandomForest fraud probability to a business action.
 
-        pipeline.predict() returns:
-            -1  →  anomaly  →  MFA_CHALLENGE
-            +1  →  normal   →  ALLOW
-
-        We use predict() (not a raw threshold on the score) so the decision
-        always respects the contamination parameter set at training time.
-        This makes the system behaviour predictable and auditable.
+        Thresholds:
+            prob < 0.30   →  ALLOW
+            0.30 ≤ prob ≤ 0.70  →  MFA_CHALLENGE
+            prob > 0.70   →  BLOCK
         """
-        # Build feature vector again for predict() (reuse _ml_score internals)
-        vector = [float(tx.get(col, 0)) for col in self._feature_cols]
-        X      = np.array(vector, dtype=np.float64).reshape(1, -1)
-        label  = int(self._pipeline.predict(X)[0])   # -1 or +1
+        prob = score  # score is already the fraud probability from _ml_score
 
-        if label == -1:
-            # Anomaly detected — step up authentication before allowing the tx.
-            reason = self._build_anomaly_reason(tx, score)
+        if prob > 0.70:
+            reason = self._build_anomaly_reason(tx, prob)
+            reason = f"High fraud probability ({prob:.2%}). " + reason
+            return {
+                "action": "BLOCK",
+                "reason": reason,
+                "score":  round(prob, 4),
+            }
+        elif prob >= 0.30:
+            reason = self._build_anomaly_reason(tx, prob)
+            reason = f"Elevated fraud probability ({prob:.2%}). Step-up authentication required. " + reason
             return {
                 "action": "MFA_CHALLENGE",
                 "reason": reason,
-                "score":  round(score, 6),
+                "score":  round(prob, 4),
             }
         else:
             return {
                 "action": "ALLOW",
                 "reason": (
                     f"Transaction matches normal behavioural patterns "
-                    f"(anomaly score: {score:.4f}).  No unusual signals detected."
+                    f"(fraud probability: {prob:.2%}).  No unusual signals detected."
                 ),
-                "score": round(score, 6),
+                "score": round(prob, 4),
             }
 
     # ─────────────────────────────────────────────────────────────────────────

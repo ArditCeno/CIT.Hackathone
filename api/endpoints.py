@@ -468,34 +468,7 @@ def execute_transfer(
     if current_balance < body.amount:
         raise HTTPException(status_code=400, detail="Bilanci i pamjaftueshëm.")
 
-    # High-amount hard rule — guaranteed BLOCK for live demo (≥ €8 000)
-    if body.amount >= 8000:
-        risk_score = 0.94
-        reason = (
-            f"Transfertë prej €{body.amount:.2f} tejkalon limitin e sigurisë. "
-            "GuardianAI e bllokoi automatikisht."
-        )
-        alert = FraudAlert(
-            user_id=current_user.id,
-            alert_type="high_amount_transfer",
-            severity="critical",
-            message=(
-                f"Tentativë transferte me shumë të lartë: "
-                f"€{body.amount:.2f} → {body.recipient_name}. Bllokuar."
-            ),
-        )
-        db.add(alert)
-        db.commit()
-        return {
-            "decision": "BLOCK",
-            "risk_score": risk_score,
-            "reason": reason,
-            "amount": body.amount,
-            "recipient": body.recipient_name,
-            "new_balance": None,
-        }
-
-    # ML fraud check for normal amounts
+    # ML fraud check — model decides based on risk signals including amount
     fraud_input = {
         "event_type": "transaction",
         "client_id": current_user.username,

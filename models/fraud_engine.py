@@ -46,4 +46,4 @@ def predict(event: dict) -> float:
     }
 
     result = _engine.evaluate_transaction(tx)
-    return _ACTION_TO_SCORE.get(result["action"], 0.1)
+    return result["score"]

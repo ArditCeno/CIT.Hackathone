@@ -92,8 +92,9 @@ Sistemi përdor dy shtresa vendimmarrjeje:
 
 ┌─────────────────────────────────────────┐
 │  SHTRESA 1 — Rregulla Biznesi (O(1))    |
-│
-│  Nëse zbulohet phishing → BLLOKO        │
+│                                         |
+│  Nëse zbulohet phishing → BLLOKO        |
+|                                         | 
 └──────────────────┬──────────────────────┘
                    │
                    |
